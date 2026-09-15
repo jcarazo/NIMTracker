@@ -15,21 +15,38 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Current state
 
-**Phase 0 (model-identifier verification) and Phase 1 (schema finalization) are done.** Phase 2
-onward (Supabase project, catalog job, completions job, frontend) has not started — no live
-Supabase project exists yet. What's on disk so far:
+**Phase 0 (model-identifier verification) and Phase 1 (schema finalization) are done. The live
+Supabase project exists and is linked.** Project ref `huladiqsospiarkumujz`
+(`https://huladiqsospiarkumujz.supabase.co`). Phase 2 onward (catalog job writing to it,
+completions job, frontend) has not started. What's on disk / live so far:
 
 - `backend/nimtracker/catalog_scraper.py` — Playwright list-page + detail-page scraper, extended
   in Phase 0 to pull `api_model_id` from each model's code snippet. Local-only so far (no `db.py`,
   no Supabase writes). `backend/pyproject.toml` is minimal (just Playwright) — `httpx`/`psycopg`
-  get added when `completions_probe.py`/`db.py` are actually written.
+  get added when `completions_probe.py`/`db.py` are actually written. `backend/.env.example` names
+  the two secrets that job will need (`NIM_API_KEY`, `SUPABASE_DB_URL`), already set as GitHub
+  Actions repo secrets.
 - `db/schema.sql`, `db/rls_policies.sql` — finalized in Phase 1, verified against a throwaway local
-  Postgres container (not Supabase): schema applies cleanly, RLS actually blocks `anon` writes even
-  when `anon` is granted full CRUD (matching Supabase's real default privilege model, not just an
-  absent GRANT), confirmed by direct test.
+  Postgres container (not Supabase) *and* pushed to the live project via
+  `supabase/migrations/20260915150904_initial_schema.sql` +
+  `20260915150905_rls_policies.sql` (`supabase db push`). Independently re-verified post-push with
+  `supabase db diff --linked` — zero drift on anything we wrote; the only diff lines were Supabase's
+  own platform defaults (`pg_net` extension, and the `rls_auto_enable()` event trigger from the
+  "Enable automatic RLS" option checked at project creation — that trigger auto-enables RLS with no
+  policy on any *future* new `public`-schema table, same default-deny shape as `catalog_run` below).
 - `db/tests/model_state_as_of_test.sql` — 7 scenarios (the 5 the plan asked for, plus 2 more) for
   `model_state_as_of()`, all passing against a real Postgres instance. Rerun this after any change
   to that function.
+- `db/tests/rls_test.sql` — confirms `anon` can read `model`/`execution`/`result` but gets **zero**
+  access to `catalog_run` (not even `SELECT`, despite real rows existing), and that writes are
+  denied by RLS itself even when `anon` is granted full CRUD at the GRANT layer (matching Supabase's
+  actual default privilege model, not a weaker "no grant at all" test). Rerun after any RLS change.
+- `frontend/.env.example` — names `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY`, the Vite-exposed
+  names the eventual frontend build maps from the `SUPABASE_URL` / `SUPABASE_ANON_KEY` GitHub
+  Actions secrets (already set) in `deploy-frontend.yml` (Phase 7, not written yet).
+- Both SQL test files, plus the Docker-container verification workflow, are reusable — see "Setup /
+  commands" below. Always rerun them locally before pushing a schema change live; never treat a
+  local pass as optional before touching the real project (Hard rules above).
 
 All project context otherwise lives in `_planning/` (gitignored — local planning material, not
 committed, but present on disk and authoritative):
@@ -170,6 +187,22 @@ like natural additions.
   `rls_policies.sql` references the `anon` role, which plain Postgres doesn't have — `create role
   anon;` first if testing that file too. Note plain Postgres also has no base GRANTs to `anon` by
   default the way Supabase does; grant `select` (or full CRUD, to test RLS itself rather than the
-  GRANT layer) explicitly before checking policy behavior.
+  GRANT layer) explicitly before checking policy behavior. Also run `db/tests/rls_test.sql` the same
+  way — it does its own role/grant setup internally, transaction-wrapped and rolled back.
+- **Supabase CLI (`brew install supabase/tap/supabase`, already linked to project
+  `huladiqsospiarkumujz` via `supabase link`):**
+  ```
+  supabase migration list         # compare local supabase/migrations/ against what's applied live
+  supabase db diff --linked       # full schema diff against live — spins up a throwaway local
+                                   # Supabase stack via Docker to compute it, cleans up after itself
+  ```
+  **`supabase db push` applies `supabase/migrations/*.sql` to the real live project — this is
+  exactly the kind of command the Hard rules require confirmation for.** Never run it without
+  Javier explicitly saying go for that specific push, regardless of what's already in the migrations
+  directory. A new schema change goes: edit `db/schema.sql`/`db/rls_policies.sql` → verify locally
+  (Docker container, both test files) → copy into a new timestamped file under
+  `supabase/migrations/` → show Javier the exact file(s) → confirm → `db push` → `db diff --linked`
+  to independently verify what actually landed.
 - **Frontend:** not started — no `package.json` yet. Check the plan's Repository Layout section
-  (`NIMTracker-implementation-plan.md` §3) before inventing structure.
+  (`NIMTracker-implementation-plan.md` §3) before inventing structure. `.env.example` already exists
+  with the two Vite-exposed variable names it will need.

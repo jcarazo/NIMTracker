@@ -5,3 +5,5 @@ backend/out/
 __pycache__/
 *.pyc
 .env
+supabase/.temp/
+.DS_Store

@@ -15,17 +15,49 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Current state
 
-**Phase 0 (model-identifier verification) and Phase 1 (schema finalization) are done. The live
-Supabase project exists and is linked.** Project ref `huladiqsospiarkumujz`
-(`https://huladiqsospiarkumujz.supabase.co`). Phase 2 onward (catalog job writing to it,
-completions job, frontend) has not started. What's on disk / live so far:
+**Phase 0 and Phase 1 are done and live. Phase 2 (catalog discovery job) is written and verified
+locally, but not yet pushed/run against the live Supabase project — waiting on explicit go-ahead
+for both the pending migration and the first live run.** Project ref `huladiqsospiarkumujz`
+(`https://huladiqsospiarkumujz.supabase.co`). What's on disk / live so far:
 
-- `backend/nimtracker/catalog_scraper.py` — Playwright list-page + detail-page scraper, extended
-  in Phase 0 to pull `api_model_id` from each model's code snippet. Local-only so far (no `db.py`,
-  no Supabase writes). `backend/pyproject.toml` is minimal (just Playwright) — `httpx`/`psycopg`
-  get added when `completions_probe.py`/`db.py` are actually written. `backend/.env.example` names
-  the two secrets that job will need (`NIM_API_KEY`, `SUPABASE_DB_URL`), already set as GitHub
-  Actions repo secrets.
+- `backend/nimtracker/catalog_scraper.py` + `backend/nimtracker/db.py` — the real Phase 2 catalog
+  job (`run_catalog_job()`), plus the original Phase 0 scrape-only/JSON-dump mode (still available,
+  `python -m nimtracker.catalog_scraper` with no `--run-job`). Retry-once on both the list scrape
+  and each detail scrape (specifically on navigation errors or a redirect to
+  `/experience-unavailable` — never on a legitimate non-standard page like a translation/embedding
+  demo, which has no sidebar/snippet by design, not by failure). DB-backed fallback matching
+  design_decisions.md's "Fallback strategy": total list-scrape failure → `model` table untouched,
+  `catalog_run.list_source = 'db_fallback'`; one model's detail-scrape failure → falls back to its
+  last-known DB row via `find_model_by_href()` (slug match first, `catalog_href` match second — see
+  `model.catalog_href` below); brand-new model with a failed detail scrape → still inserted,
+  `detail_source: 'unknown'`, never silently dropped. One transaction per run (atomic).
+  `backend/tests/test_catalog_job.py` (pytest, self-contained — spins up and tears down its own
+  Docker Postgres container) covers all of this with synthetic scrape results, including the
+  redirecting-href dedup case specifically. Also proven with one real end-to-end run (live
+  Playwright scrape of the actual NVIDIA catalog + writes to a local container): 35 models found, 34
+  distinct rows (the `ising-calibration` redirect correctly collapsed to one row instead of
+  duplicating), 3 fell back to `detail_source: 'unknown'` (two `llama-3.2-*-vision-instruct` models
+  and `cosmos3-nano-reasoner` all hit `/experience-unavailable` on both attempts that run — real
+  evidence the retry-once discipline is necessary, not just theoretical). **Nothing from this run
+  touched the live project** — output was inspected via SQL directly against the local container,
+  then torn down.
+- **`model.catalog_href`** (new nullable `text` column, migration
+  `supabase/migrations/20260915182102_add_catalog_href.sql`, not yet pushed live) — stores the raw,
+  as-scraped catalog-list href verbatim, separately from `slug` (which stays the resolved value).
+  Exists specifically because a slug-only fallback lookup silently misses a model whose href
+  redirects to a different resolved slug (confirmed real:
+  `/nvidia/ising-calibration-1-35b-a3b` → `nvidia/ising-calibration-1.5-31b`) — without it, a
+  detail-scrape failure on a redirecting model would insert a duplicate row instead of finding the
+  existing one. Verified locally by replaying the two already-live migrations then applying this one
+  on top (proving it works as a true incremental `ALTER`, not just inside a fresh `CREATE`), and by
+  confirming a fresh single-shot `db/schema.sql` apply produces an identical column set.
+  `backend/pyproject.toml` now also includes `psycopg[binary]` (confirmed 3.14-compatible) and a
+  `test` extra (`pytest`). `backend/.env.example` names the two secrets the job needs
+  (`NIM_API_KEY`, `SUPABASE_DB_URL`), already set as GitHub Actions repo secrets.
+- **Still pending, in order, each needing explicit go-ahead separately (Hard rules above):** (1)
+  `supabase db push` for the `catalog_href` migration, (2) an actual `--run-job` run against the
+  live project. `.github/workflows/catalog-discovery.yml` (the scheduled cron) is explicitly held
+  for a separate pass — not drafted yet, by request.
 - `db/schema.sql`, `db/rls_policies.sql` — finalized in Phase 1, verified against a throwaway local
   Postgres container (not Supabase) *and* pushed to the live project via
   `supabase/migrations/20260915150904_initial_schema.sql` +
@@ -167,13 +199,14 @@ like natural additions.
 
 - **Backend (Python 3.14, venv at `backend/.venv`, not committed):**
   ```
-  cd backend && python3 -m venv .venv && .venv/bin/pip install -e .
+  cd backend && python3 -m venv .venv && .venv/bin/pip install -e ".[test]"
   .venv/bin/playwright install chromium
-  .venv/bin/python -m nimtracker.catalog_scraper --out out/some_name.json
+  .venv/bin/python -m nimtracker.catalog_scraper --out out/some_name.json          # scrape-only, no DB
+  .venv/bin/python -m nimtracker.catalog_scraper --run-job --db-url <local-dsn>    # the real job
+  .venv/bin/python -m pytest tests/test_catalog_job.py -v                         # self-contained, spins up its own Docker Postgres
   ```
   `backend/out/` holds scrape output and is gitignored-worthy scratch data, not committed source.
-  No test suite yet — `backend/tests/test_resolution.py` gets created when `resolution.py` does
-  (Phase 3).
+  `backend/tests/test_resolution.py` gets created when `resolution.py` does (Phase 3).
 - **Schema verification (local only, never against the real Supabase project without
   confirmation — see Hard rules):** apply `db/schema.sql` then `db/rls_policies.sql` to a scratch
   Postgres instance and run `db/tests/model_state_as_of_test.sql` against it. A throwaway Docker

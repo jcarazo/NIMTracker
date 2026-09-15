@@ -26,6 +26,21 @@ create table model (
   description                 text,
   tags                        text[],
 
+  -- The raw, as-scraped catalog-card href (e.g.
+  -- '/nvidia/ising-calibration-1-35b-a3b'), kept verbatim (leading slash
+  -- and all) purely as a secondary lookup key -- NOT an identity column,
+  -- `slug` is still that. Added in Phase 2 after finding a real gap: when
+  -- a model's detail-page scrape fails on a given run, the only fallback
+  -- lookup available is by slug -- but a REDIRECTING model's href never
+  -- equals its resolved slug (see the comment on `slug` above), so that
+  -- lookup silently misses and the catalog job would insert a duplicate
+  -- row instead of finding the existing one. Confirmed real, not
+  -- hypothetical: '/nvidia/ising-calibration-1-35b-a3b' 30x-redirects to
+  -- 'nvidia/ising-calibration-1.5-31b' right now. Populated on every
+  -- successful list scrape for every model in it, independent of whether
+  -- that model's own detail-page scrape succeeds this run.
+  catalog_href                text,
+
   -- catalog badges (from the live catalog scrape)
   is_free_endpoint            boolean not null default true,
   deprecation_days            integer, -- from "Deprecation in Xd" badge; null = no warning currently shown

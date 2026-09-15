@@ -1,10 +1,10 @@
 """psycopg3 connection + typed read/write helpers for the catalog job
-(Phase 2) and, later, the completions job (Phase 3).
+(Phase 2, catalog_scraper.py) and the completions job (Phase 3,
+completions_probe.py).
 
 Deliberately no business logic here -- fallback/retry/resolution
-decisions live in the callers (catalog_scraper.py, eventually
-completions_probe.py). This module is only responsible for shaping SQL
-around the schema in db/schema.sql.
+decisions live in the callers. This module is only responsible for
+shaping SQL around the schema in db/schema.sql.
 """
 
 import os
@@ -99,4 +99,51 @@ def insert_catalog_run(conn: psycopg.Connection, list_source: str, models_found_
         cur.execute(
             "insert into catalog_run (list_source, models_found_count) values (%s, %s)",
             (list_source, models_found_count),
+        )
+
+
+def get_all_models(conn: psycopg.Connection) -> list[dict]:
+    """Every model, unconditionally -- the completions sweep tests every
+    catalog-listed model every run, no filtering on heuristic fields
+    (see CLAUDE.md, "no heuristic may ever prevent a model from being
+    tested").
+    """
+    with conn.cursor() as cur:
+        cur.execute("select slug, provider, model_name, api_model_id from model order by slug")
+        return cur.fetchall()
+
+
+def insert_execution(conn: psycopg.Connection, execution: dict) -> str:
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            insert into execution (
+              started_at, models_tested_count, models_succeeded_count,
+              fastest_model_slug, fastest_response_time_s
+            ) values (
+              %(started_at)s, %(models_tested_count)s, %(models_succeeded_count)s,
+              %(fastest_model_slug)s, %(fastest_response_time_s)s
+            )
+            returning id
+            """,
+            execution,
+        )
+        return cur.fetchone()["id"]
+
+
+def insert_result(conn: psycopg.Connection, result: dict) -> None:
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            insert into result (
+              execution_id, model_slug, success, error_category, error_body,
+              response_time_s, completion_tokens, prompt_tokens, tokens_per_sec,
+              response_text, resolution
+            ) values (
+              %(execution_id)s, %(model_slug)s, %(success)s, %(error_category)s, %(error_body)s,
+              %(response_time_s)s, %(completion_tokens)s, %(prompt_tokens)s, %(tokens_per_sec)s,
+              %(response_text)s, %(resolution)s
+            )
+            """,
+            result,
         )

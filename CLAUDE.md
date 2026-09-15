@@ -98,9 +98,7 @@ committed, but present on disk and authoritative):
 
 Build in the phase order the implementation plan lays out (Phase 0 → 7). Do not skip ahead to
 later-phase code (e.g. frontend) before earlier phases (Supabase project) are actually in place —
-later phases depend on concrete outputs of earlier ones, not just their written intent. Next up is
-Phase 2 (Guided Supabase project creation, implementation plan §6) before any code that writes to a
-live project.
+later phases depend on concrete outputs of earlier ones, not just their written intent.
 
 ## What this app is
 
@@ -143,6 +141,20 @@ persona (the user themself) — no auth, no multi-tenant concerns.
   heuristic defaults to "real error", not excluded) lives in `design_decisions.md` under "Model
   discovery & testing pipeline" — implement it exactly, in one isolated, unit-tested module
   (`resolution.py` per the plan).
+- **Intentional v1 limitation: `resolve()` never actually excludes anything (`excluded_non_text` is
+  unreachable in practice).** The design doc's exclusion case requires "sidebar absent + tags
+  indicate non-text," but real tag data pulled from the live `model` table during Phase 3 planning
+  showed this can't be done safely with a keyword heuristic — e.g. `nemotron-3-embed-1b`'s tags
+  literally include `'Text-to-Embedding'` (a naive "text" match would call it text-capable, backwards
+  from reality), while `llama-guard-4-12b` (a genuine text-in/text-out safety classifier) has no
+  text-ish keyword in its tags at all. Building a tag keyword list here would be exactly the kind of
+  heuristic design_decisions.md already burned two attempts on and explicitly rejected. Decided:
+  every failure defaults to `counted_error` for v1, regardless of heuristic signal — the ~19 current
+  no-sidebar/non-standard-page models (translation, embedding, TTS, safety-guard, autonomous-vehicle
+  perception, etc.) will show as `counted_error`, not silently excluded, if their completions call
+  fails. Revisit only with real completions-failure evidence once Phase 3 has actually run (the same
+  methodology Phase 0 used to disprove the first two heuristics), never by guessing a tags rule
+  up front.
 - **No cached current-state field on `model`.** Available/Removed/Degraded state is always derived
   live from `result` history via a single shared function/view (`model_state_as_of()`), never
   duplicated across the several views that need it (Models table Uptime column, model detail page

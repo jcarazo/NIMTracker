@@ -15,25 +15,43 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Current state
 
-This repo is pre-code. The only tracked file is `.gitignore`; no backend, frontend, or database
-code exists yet. All project context lives in `_planning/` (gitignored — local planning material,
-not committed, but present on disk and authoritative):
+**Phase 0 (model-identifier verification) and Phase 1 (schema finalization) are done.** Phase 2
+onward (Supabase project, catalog job, completions job, frontend) has not started — no live
+Supabase project exists yet. What's on disk so far:
+
+- `backend/nimtracker/catalog_scraper.py` — Playwright list-page + detail-page scraper, extended
+  in Phase 0 to pull `api_model_id` from each model's code snippet. Local-only so far (no `db.py`,
+  no Supabase writes). `backend/pyproject.toml` is minimal (just Playwright) — `httpx`/`psycopg`
+  get added when `completions_probe.py`/`db.py` are actually written.
+- `db/schema.sql`, `db/rls_policies.sql` — finalized in Phase 1, verified against a throwaway local
+  Postgres container (not Supabase): schema applies cleanly, RLS actually blocks `anon` writes even
+  when `anon` is granted full CRUD (matching Supabase's real default privilege model, not just an
+  absent GRANT), confirmed by direct test.
+- `db/tests/model_state_as_of_test.sql` — 7 scenarios (the 5 the plan asked for, plus 2 more) for
+  `model_state_as_of()`, all passing against a real Postgres instance. Rerun this after any change
+  to that function.
+
+All project context otherwise lives in `_planning/` (gitignored — local planning material, not
+committed, but present on disk and authoritative):
 
 - `_planning/NIMTracker-implementation-plan.md` — phase-by-phase build plan, repository layout,
-  and the guided Supabase setup walkthrough. **Read this in full before writing any code.**
+  and the guided Supabase setup walkthrough, now updated with the Phase 0/1 findings folded in.
+  **Read this in full before writing any code.**
 - `_planning/design_decisions.md` — the full functional spec: use cases, schema rationale, the
   model discovery/testing pipeline, and every view's data requirements. **Read this in full too.**
+  Not updated with Phase 0/1 findings — `NIMTracker-implementation-plan.md` and `db/schema.sql` are
+  the current source of truth where the two disagree (e.g. `api_model_id`, `catalog_run`).
 - `_planning/reference/*.py` (`scrape_catalog.py`, `check_completions.py`, `check_models_list.py`,
   `check_rate_limit.py`) — throwaway validation scripts that proved the scraping approach and the
-  error taxonomy. Reference only — do not copy into production code; rewrite using `httpx` and
-  `psycopg` per the plan.
-- `_planning/reference/schema.sql` — a first-pass schema based on the spec. Will be adjusted in
-  Phase 1, not used verbatim.
+  error taxonomy. Reference only, superseded by `backend/nimtracker/catalog_scraper.py` for the
+  parts it now covers.
+- `_planning/reference/schema.sql` — superseded by `db/schema.sql`. Kept only for history.
 
 Build in the phase order the implementation plan lays out (Phase 0 → 7). Do not skip ahead to
-later-phase code (e.g. frontend) before earlier phases (schema, Supabase project) are actually in
-place — later phases depend on concrete outputs of earlier ones (table names, `api_model_id`
-values, etc.), not just their written intent.
+later-phase code (e.g. frontend) before earlier phases (Supabase project) are actually in place —
+later phases depend on concrete outputs of earlier ones, not just their written intent. Next up is
+Phase 2 (Guided Supabase project creation, implementation plan §6) before any code that writes to a
+live project.
 
 ## What this app is
 
@@ -98,9 +116,28 @@ persona (the user themself) — no auth, no multi-tenant concerns.
   If one model's detail-page scrape fails, fall back to that model's last DB record (flag
   `detail_source: db_fallback`, or `unknown` for a brand-new model).
 - **`api_model_id` vs `slug`:** the literal `model` string used in completions API calls is scraped
-  from the code snippet on each model's own detail page (authoritative), with "slug minus leading
-  slash" as a fallback only where the snippet is missing — the two are not assumed identical
-  without checking.
+  from the code snippet on each model's own detail page (authoritative, `api_model_id_source =
+  'scraped_snippet'`), with "slug minus leading slash" as a fallback only where the snippet is
+  missing (`'derived_fallback'`) — the two are not assumed identical without checking. Verified
+  against the full live catalog in Phase 0: zero mismatches, but store both fields with explicit
+  provenance anyway (`model.api_model_id` / `model.api_model_id_source` in `db/schema.sql`) rather
+  than recomputing from `slug` at call time — see the next point for why that matters.
+- **`model.slug` must be the resolved slug, not the raw catalog-card href.** Phase 0 found a live
+  example of a catalog card whose `href` 30x-redirects to a different, canonical detail-page URL.
+  The scraper must always upsert using wherever the detail-page navigation actually landed (`page.url`
+  after following redirects), never the un-navigated href straight off the list page — otherwise a
+  redirecting model eventually creates a duplicate `model` row instead of updating the existing one.
+- **Detail-page scrape failures need the same "no permanent conclusion from one check" discipline
+  already specified for the hourly completions job.** Phase 0 observed one model transiently
+  redirect to an error page on one run and load fine immediately before/after, while a different
+  model redirected consistently across repeat checks. Retry once before recording a detail-page
+  scrape as failed or falling back to the DB record — don't treat a single failed navigation as
+  authoritative.
+- **`catalog_run` is a separate table from `execution`.** The reference schema tracked catalog
+  list-source provenance (`live` / `db_fallback`) as a column on `execution`, which conflated the
+  daily catalog-discovery job with the hourly completions job — they're separate activities and the
+  hourly sweep doesn't scrape a list at all. `db/schema.sql` gives the daily job its own
+  `catalog_run` table for this instead.
 
 ## Explicitly out of scope for v1
 
@@ -111,8 +148,28 @@ like natural additions.
 
 ## Setup / commands
 
-Not yet established — no `pyproject.toml`, `package.json`, or test suite exists yet. These will be
-created as part of Phase 1+ per the implementation plan (`backend/pyproject.toml` for the Python
-jobs with `backend/tests/test_resolution.py` as the first real test suite; `frontend/package.json`
-for the Vite app). Do not invent commands before those files exist — check the plan's Repository
-Layout section (`NIMTracker-implementation-plan.md` §3) for the intended structure first.
+- **Backend (Python 3.14, venv at `backend/.venv`, not committed):**
+  ```
+  cd backend && python3 -m venv .venv && .venv/bin/pip install -e .
+  .venv/bin/playwright install chromium
+  .venv/bin/python -m nimtracker.catalog_scraper --out out/some_name.json
+  ```
+  `backend/out/` holds scrape output and is gitignored-worthy scratch data, not committed source.
+  No test suite yet — `backend/tests/test_resolution.py` gets created when `resolution.py` does
+  (Phase 3).
+- **Schema verification (local only, never against the real Supabase project without
+  confirmation — see Hard rules):** apply `db/schema.sql` then `db/rls_policies.sql` to a scratch
+  Postgres instance and run `db/tests/model_state_as_of_test.sql` against it. A throwaway Docker
+  container works well for this and leaves nothing behind:
+  ```
+  docker run -d --name nimtracker-schema-test -e POSTGRES_PASSWORD=test -p 55432:5432 postgres:16
+  cat db/schema.sql | docker exec -i nimtracker-schema-test psql -U postgres -v ON_ERROR_STOP=1
+  cat db/tests/model_state_as_of_test.sql | docker exec -i nimtracker-schema-test psql -U postgres -v ON_ERROR_STOP=1
+  docker rm -f nimtracker-schema-test
+  ```
+  `rls_policies.sql` references the `anon` role, which plain Postgres doesn't have — `create role
+  anon;` first if testing that file too. Note plain Postgres also has no base GRANTs to `anon` by
+  default the way Supabase does; grant `select` (or full CRUD, to test RLS itself rather than the
+  GRANT layer) explicitly before checking policy behavior.
+- **Frontend:** not started — no `package.json` yet. Check the plan's Repository Layout section
+  (`NIMTracker-implementation-plan.md` §3) before inventing structure.

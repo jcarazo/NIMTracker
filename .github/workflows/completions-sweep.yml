@@ -1,0 +1,73 @@
+name: Completions sweep
+
+# Hourly completions sweep (design_decisions.md, "Cadence" and "Hourly
+# sweep parameters"): one real chat-completions call per catalog-listed
+# model, unconditionally, per backend/nimtracker/completions_probe.py's
+# run_completions_sweep(). 240s per-model timeout, 3-way concurrency,
+# and zero in-run retries are all fixed inside the script itself --
+# nothing here should ever wrap this job in a retry, which would
+# reintroduce exactly the false-positive risk the no-retry design
+# exists to prevent. A failed model this hour is normal, expected data,
+# not a workflow failure; the next hourly run is the retry, by design.
+#
+# Needs both SUPABASE_DB_URL (writes execution/result) and NIM_API_KEY
+# (the actual completions calls) -- confirmed by reading
+# completions_probe.py's main(), not assumed.
+
+on:
+  schedule:
+    # 7 minutes past every hour -- offset from :00 on purpose, same
+    # reasoning as catalog-discovery.yml.
+    - cron: '7 * * * *'
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: completions-sweep
+  # A still-running sweep gets cancelled in favor of a fresh one rather
+  # than queuing -- the whole design philosophy here is that the next
+  # hourly run IS the retry, so favor a fresh run over finishing a stale
+  # one. Safe to cancel mid-run: the script only commits once, in one
+  # transaction, after every model has been called and every row
+  # staged -- a cancelled run writes nothing partial, the DB is left
+  # exactly as the previous successful run left it.
+  cancel-in-progress: true
+
+jobs:
+  sweep:
+    runs-on: ubuntu-latest
+    # Real runs observed 10-15 minutes; worst case (many models each
+    # hitting the full 240s timeout) could stretch well past that, so
+    # this is a safety cap, not a typical-case estimate -- generous
+    # enough to not clip a normal run, tight enough to not silently eat
+    # into the next hour's slot indefinitely.
+    timeout-minutes: 60
+    env:
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+      NIM_API_KEY: ${{ secrets.NIM_API_KEY }}
+      # See catalog-discovery.yml's comment -- same reasoning, real-time
+      # log visibility during a live run instead of deferred chunks.
+      PYTHONUNBUFFERED: "1"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+          cache: pip
+          cache-dependency-path: backend/pyproject.toml
+
+      - name: Install backend package
+        # Pulls in Playwright too (it's a base dependency in
+        # backend/pyproject.toml, not split into per-job extras) even
+        # though this job never uses it -- deliberately not restructuring
+        # the package for two workflows. The install itself is cheap;
+        # what actually matters is NOT running `playwright install` here,
+        # since this job has no browser to run at all.
+        run: pip install -e backend/
+
+      - name: Run completions sweep job
+        run: python -m nimtracker.completions_probe

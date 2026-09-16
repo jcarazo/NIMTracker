@@ -1,0 +1,59 @@
+name: Catalog discovery
+
+# Daily catalog discovery job (design_decisions.md, "Cadence"): scrapes
+# build.nvidia.com's Free Endpoint catalog and upserts into `model`, per
+# backend/nimtracker/catalog_scraper.py's run_catalog_job(). Separate
+# from the hourly completions sweep -- these are two independent
+# activities, not two tiers of the same cadence.
+#
+# Needs only SUPABASE_DB_URL -- this job never calls NVIDIA's API, only
+# scrapes build.nvidia.com, so it has no use for NIM_API_KEY (confirmed
+# by reading catalog_scraper.py's --run-job path, not assumed).
+
+on:
+  schedule:
+    # 03:17 UTC daily -- offset from the top of the hour on purpose;
+    # GitHub recommends avoiding round times due to shared scheduler load.
+    - cron: '17 3 * * *'
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+    # Real runs observed 5-13 minutes; generous headroom without relying
+    # on GitHub's 360-minute default, which would mask a hung run for far
+    # too long before anyone noticed.
+    timeout-minutes: 30
+    env:
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+      # Python fully buffers stdout when it's not a TTY -- discovered the
+      # hard way during local verification, when a live run's output
+      # didn't appear until the process exited. Without this, live log
+      # tailing during a run shows nothing until it's already done.
+      PYTHONUNBUFFERED: "1"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+          cache: pip
+          cache-dependency-path: backend/pyproject.toml
+
+      - name: Install backend package
+        run: pip install -e backend/
+
+      - name: Install Playwright's Chromium
+        # pip install only gets the Python package -- the actual browser
+        # binary is a separate download, and --with-deps additionally
+        # installs the OS-level shared libraries (fonts, libnss3, etc.)
+        # a bare Ubuntu runner is missing, without which Chromium fails
+        # to even launch headless, not just fails to load pages.
+        run: playwright install --with-deps chromium
+
+      - name: Run catalog discovery job
+        run: python -m nimtracker.catalog_scraper --run-job

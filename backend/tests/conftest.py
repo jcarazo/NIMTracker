@@ -48,6 +48,11 @@ def pg_dsn():
 
     schema_sql = (REPO_ROOT / "db" / "schema.sql").read_text()
     with psycopg.connect(DSN, autocommit=True) as conn:
+        # schema.sql grants to `anon`, which exists on the real Supabase
+        # project but not on a vanilla postgres:16 image -- same role
+        # creation already used by db/tests/rls_test.sql and
+        # db/tests/landing_functions_test.sql for the same reason.
+        conn.execute("create role anon")
         conn.execute(schema_sql)
 
     yield DSN

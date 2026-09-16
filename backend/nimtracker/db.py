@@ -20,6 +20,26 @@ def get_connection(dsn: str | None = None) -> psycopg.Connection:
     redirecting a test run at the real project.
     """
     dsn = dsn or os.environ["SUPABASE_DB_URL"]
+    if not (dsn.startswith("postgresql://") or dsn.startswith("postgres://")):
+        # Caught a real failure this was hit by: the GitHub Actions
+        # secret named SUPABASE_DB_URL apparently had its VALUE set to
+        # its own NAME (or some other placeholder) rather than a real
+        # connection string -- os.environ["SUPABASE_DB_URL"] correctly
+        # returned whatever was actually stored there, which then hit
+        # psycopg/libpq's conninfo parser and produced a confusing
+        # "invalid connection option" error deep in a traceback instead
+        # of pointing at the actual problem. Fail clearly, here, instead.
+        # Deliberately never includes any part of `dsn` in this message
+        # -- even a truncated prefix isn't worth the risk once this can
+        # end up in a CI log.
+        raise ValueError(
+            f"SUPABASE_DB_URL does not look like a Postgres connection string "
+            f"(expected it to start with 'postgresql://' or 'postgres://', "
+            f"got a {len(dsn)}-character value that doesn't). Check the actual "
+            f"value stored in the GitHub Actions repo secret (or backend/.env "
+            f"for local runs) -- a common mistake is the secret's VALUE field "
+            f"accidentally being set to the secret's NAME."
+        )
     return psycopg.connect(dsn, row_factory=dict_row)
 
 

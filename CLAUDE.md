@@ -15,70 +15,56 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Current state
 
-**Phase 0 and Phase 1 are done and live. Phase 2 (catalog discovery job) is written and verified
-locally, but not yet pushed/run against the live Supabase project — waiting on explicit go-ahead
-for both the pending migration and the first live run.** Project ref `huladiqsospiarkumujz`
-(`https://huladiqsospiarkumujz.supabase.co`). What's on disk / live so far:
+**Phases 0-4 are done and live** (model-identifier verification, schema, catalog discovery job,
+completions sweep job, frontend scaffold + landing page). Project ref `huladiqsospiarkumujz`
+(`https://huladiqsospiarkumujz.supabase.co`). Next up is Phase 5 (Models page + model detail page).
+What's on disk / live, condensed to what's still load-bearing (full blow-by-blow of each
+verification run lives in git history / conversation history, not repeated here):
 
-- `backend/nimtracker/catalog_scraper.py` + `backend/nimtracker/db.py` — the real Phase 2 catalog
-  job (`run_catalog_job()`), plus the original Phase 0 scrape-only/JSON-dump mode (still available,
-  `python -m nimtracker.catalog_scraper` with no `--run-job`). Retry-once on both the list scrape
-  and each detail scrape (specifically on navigation errors or a redirect to
-  `/experience-unavailable` — never on a legitimate non-standard page like a translation/embedding
-  demo, which has no sidebar/snippet by design, not by failure). DB-backed fallback matching
-  design_decisions.md's "Fallback strategy": total list-scrape failure → `model` table untouched,
-  `catalog_run.list_source = 'db_fallback'`; one model's detail-scrape failure → falls back to its
-  last-known DB row via `find_model_by_href()` (slug match first, `catalog_href` match second — see
-  `model.catalog_href` below); brand-new model with a failed detail scrape → still inserted,
-  `detail_source: 'unknown'`, never silently dropped. One transaction per run (atomic).
-  `backend/tests/test_catalog_job.py` (pytest, self-contained — spins up and tears down its own
-  Docker Postgres container) covers all of this with synthetic scrape results, including the
-  redirecting-href dedup case specifically. Also proven with one real end-to-end run (live
-  Playwright scrape of the actual NVIDIA catalog + writes to a local container): 35 models found, 34
-  distinct rows (the `ising-calibration` redirect correctly collapsed to one row instead of
-  duplicating), 3 fell back to `detail_source: 'unknown'` (two `llama-3.2-*-vision-instruct` models
-  and `cosmos3-nano-reasoner` all hit `/experience-unavailable` on both attempts that run — real
-  evidence the retry-once discipline is necessary, not just theoretical). **Nothing from this run
-  touched the live project** — output was inspected via SQL directly against the local container,
-  then torn down.
-- **`model.catalog_href`** (new nullable `text` column, migration
-  `supabase/migrations/20260915182102_add_catalog_href.sql`, not yet pushed live) — stores the raw,
-  as-scraped catalog-list href verbatim, separately from `slug` (which stays the resolved value).
-  Exists specifically because a slug-only fallback lookup silently misses a model whose href
-  redirects to a different resolved slug (confirmed real:
-  `/nvidia/ising-calibration-1-35b-a3b` → `nvidia/ising-calibration-1.5-31b`) — without it, a
-  detail-scrape failure on a redirecting model would insert a duplicate row instead of finding the
-  existing one. Verified locally by replaying the two already-live migrations then applying this one
-  on top (proving it works as a true incremental `ALTER`, not just inside a fresh `CREATE`), and by
-  confirming a fresh single-shot `db/schema.sql` apply produces an identical column set.
-  `backend/pyproject.toml` now also includes `psycopg[binary]` (confirmed 3.14-compatible) and a
-  `test` extra (`pytest`). `backend/.env.example` names the two secrets the job needs
-  (`NIM_API_KEY`, `SUPABASE_DB_URL`), already set as GitHub Actions repo secrets.
-- **Still pending, in order, each needing explicit go-ahead separately (Hard rules above):** (1)
-  `supabase db push` for the `catalog_href` migration, (2) an actual `--run-job` run against the
-  live project. `.github/workflows/catalog-discovery.yml` (the scheduled cron) is explicitly held
-  for a separate pass — not drafted yet, by request.
-- `db/schema.sql`, `db/rls_policies.sql` — finalized in Phase 1, verified against a throwaway local
-  Postgres container (not Supabase) *and* pushed to the live project via
-  `supabase/migrations/20260915150904_initial_schema.sql` +
-  `20260915150905_rls_policies.sql` (`supabase db push`). Independently re-verified post-push with
-  `supabase db diff --linked` — zero drift on anything we wrote; the only diff lines were Supabase's
-  own platform defaults (`pg_net` extension, and the `rls_auto_enable()` event trigger from the
-  "Enable automatic RLS" option checked at project creation — that trigger auto-enables RLS with no
-  policy on any *future* new `public`-schema table, same default-deny shape as `catalog_run` below).
-- `db/tests/model_state_as_of_test.sql` — 7 scenarios (the 5 the plan asked for, plus 2 more) for
-  `model_state_as_of()`, all passing against a real Postgres instance. Rerun this after any change
-  to that function.
-- `db/tests/rls_test.sql` — confirms `anon` can read `model`/`execution`/`result` but gets **zero**
-  access to `catalog_run` (not even `SELECT`, despite real rows existing), and that writes are
-  denied by RLS itself even when `anon` is granted full CRUD at the GRANT layer (matching Supabase's
-  actual default privilege model, not a weaker "no grant at all" test). Rerun after any RLS change.
-- `frontend/.env.example` — names `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY`, the Vite-exposed
-  names the eventual frontend build maps from the `SUPABASE_URL` / `SUPABASE_ANON_KEY` GitHub
-  Actions secrets (already set) in `deploy-frontend.yml` (Phase 7, not written yet).
-- Both SQL test files, plus the Docker-container verification workflow, are reusable — see "Setup /
-  commands" below. Always rerun them locally before pushing a schema change live; never treat a
-  local pass as optional before touching the real project (Hard rules above).
+- **Backend jobs** (`backend/nimtracker/`): `catalog_scraper.py` (daily catalog job,
+  `run_catalog_job()`) and `completions_probe.py` (hourly sweep, `run_completions_sweep()`), both
+  proven end-to-end against the live project, not just unit-tested. `db.py` holds all SQL, no
+  business logic. Neither job's GitHub Actions workflow exists yet (`catalog-discovery.yml`,
+  `completions-sweep.yml`) — deliberately held for a separate pass, so nothing is running on a
+  schedule against the live project yet. Live data right now: 34 tracked models, 1 `catalog_run`,
+  1 `execution` (13 succeeded that run).
+- **The two jobs have opposite retry philosophies on purpose** — catalog job retries once on a
+  transient-looking failure (navigation error, or the specific `/experience-unavailable` redirect);
+  completions job retries *zero* times for anything (timeout/429/5xx all recorded immediately) —
+  design_decisions.md is explicit that an in-run retry there risks manufacturing a false "working"
+  result; the next hourly run is the real retry. Don't port one job's retry pattern into the other.
+- **`model.catalog_href`** — stores the raw, pre-redirect catalog-list href separately from `slug`
+  (the resolved value), specifically because a slug-only fallback lookup misses a model whose href
+  redirects elsewhere (confirmed real: `ising-calibration-1-35b-a3b` → `ising-calibration-1.5-31b`).
+  `find_model_by_href()` in `catalog_scraper.py` tries slug first, `catalog_href` second.
+- **`resolve()` in `resolution.py` never actually returns `excluded_non_text`** — every failure
+  counts as `counted_error` in v1. Real tag data showed a tags-based exclusion heuristic can't be
+  built safely without completions-failure evidence to validate it against first (design_decisions.md
+  already burned two heuristics on this exact mistake). Revisit only with real evidence, not a
+  guessed tags rule.
+- **Every DB function (`model_state_as_of`, all `landing_*` RPCs) is `SECURITY INVOKER`, explicit,
+  never DEFINER**, with `EXECUTE` explicitly revoked from `PUBLIC` and re-granted to `anon` only —
+  never left on Postgres's default grant. Proven with a direct contrast test, not just asserted: an
+  identical query as `SECURITY INVOKER` vs `SECURITY DEFINER` returns 0 rows vs. the real count from
+  `catalog_run` (RLS-enabled, zero policies) — see `db/tests/landing_functions_test.sql`.
+- **Frontend** (`frontend/`): Vite + React 18 + TypeScript + Tailwind v3 + Tremor 3.18.7 (see
+  Architecture section below for why those specific versions, not current majors). Landing page
+  (KPI row, merged "Models Available Over Time" chart with an Overall/By Provider tab toggle, Top 5
+  Fastest/Throughput tables) reads live data through `landing_*` RPC functions using the anon key —
+  verified with real anon-key network calls shown directly (not just "it rendered"), and by actually
+  loading the page in a browser, which caught two real bugs `tsc`/`vite build` didn't: an unmemoized
+  `since` value causing an infinite refetch loop (fixed with `useMemo`), and a Top 5 table column
+  silently clipped by Tremor's default sizing (measured in-browser: 564px of content in a 496px
+  container). No router yet — single page, `App.tsx` renders `LandingPage` directly; Phase 5 adds
+  routing when a second real page exists.
+- **Deferred, not forgotten, with reasons:**
+  - Light/dark theme toggle — do it once, after every page exists, not piecemeal per-page.
+  - Nav bar — comes naturally with Phase 5's routing; building one now for a single-page app would
+    be premature.
+- `db/tests/*.sql` (`model_state_as_of_test.sql`, `rls_test.sql`, `landing_functions_test.sql`) —
+  rerun after any change to the functions/policies they cover; see "Setup / commands." Always
+  verify locally before touching the live project — never treat a local pass as optional (Hard
+  rules above).
 
 All project context otherwise lives in `_planning/` (gitignored — local planning material, not
 committed, but present on disk and authoritative):
@@ -122,10 +108,32 @@ persona (the user themself) — no auth, no multi-tenant concerns.
   shorter than observed real model response times (up to ~166s).
 - **Frontend: React + TypeScript + Vite + Tailwind + Tremor** (built on Recharts), Supabase client
   (`@supabase/supabase-js`) queries data directly using the anon key.
+- **Pinned deliberately: Tremor 3.18.7 (stable), React 18, Tailwind v3 — not the current majors.**
+  Checked directly against npm at Phase 4 planning time: `@tremor/react`'s `latest` tag (3.18.7)
+  requires `react: ^18.0.0` and its classes don't render correctly under Tailwind v4's new engine
+  (confirmed via Tremor's own GitHub issues, not just assumed). A Tailwind-v4/React-19-compatible
+  Tremor exists only as `4.0.0-beta-tremor-v4.x` — still an unpromoted beta even after several
+  iterations, not `latest`. Deliberately chose the one-version-behind *stable* stack over the
+  *current* beta for a library that renders the entire UI — **do not "helpfully" upgrade to Tailwind
+  v4 / Tremor's beta line** without first re-checking whether Tremor has actually promoted a
+  Tailwind-v4-compatible release to `latest`; if it has, upgrading is fine, but on unverified
+  assumption it isn't. This is the one place in the stack that deliberately isn't "current stable,
+  not floored" — see the Python/Playwright/httpx/psycopg line above for contrast on why that
+  principle doesn't apply here.
 - **Security model: RLS, not secrecy.** The anon key is expected to ship in the frontend bundle.
   `model`/`execution`/`result` get RLS enabled with a `SELECT`-only policy for `anon`; no
   insert/update/delete policy exists for that role at all (default-deny). All writes happen only
   from GitHub Actions jobs authenticated with the Postgres connection string.
+- **Watch item: Supabase's "explicit Postgres grants for the Data API" rollout, effective for
+  existing projects from October 2026.** design_decisions.md flagged this as an open item to verify
+  once the frontend's query layer got built. Verified directly in Phase 4 (real anon-key
+  `@supabase/supabase-js` calls against the live project, both `.rpc()` on the `landing_*` functions
+  and a direct `.from('catalog_run').select()` negative control): as of that check, ordinary
+  `GRANT EXECUTE ... TO anon` / the existing RLS `SELECT` policies were sufficient on their own —
+  no separate Data-API-specific opt-in was needed. **This was confirmed working *before* the October
+  2026 rollout date**, not after it. If any database-access call from the frontend (a `.rpc()` call
+  or a direct table `select`) starts failing after that date, re-verify the anon-key RPC/RLS path
+  specifically first — don't assume it's unrelated just because the code hasn't changed.
 - **Deployment:** three GitHub Actions workflows — daily catalog discovery, hourly completions
   sweep (both write to Supabase Postgres directly), and a frontend build+deploy to GitHub Pages via
   `actions/deploy-pages` on push to `main`.

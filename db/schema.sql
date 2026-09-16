@@ -257,4 +257,174 @@ begin
     return 'degraded'; -- currently failing, but still inside the 24h grace window
   end if;
 end;
-$$ language plpgsql stable;
+$$ language plpgsql stable security invoker;
+-- security invoker made explicit in Phase 4 (was already the implicit
+-- default -- Postgres defaults to invoker when unspecified -- but
+-- explicit beats implicit for a function whose entire safety property
+-- depends on it, per the same principle applied to the Phase 4 landing
+-- functions below).
+
+revoke execute on function model_state_as_of(text, timestamptz) from public;
+grant execute on function model_state_as_of(text, timestamptz) to anon;
+-- Also added in Phase 4: this function had no explicit grant before,
+-- meaning it relied on Postgres's default EXECUTE-TO-PUBLIC grant.
+-- Harmless in practice (it doesn't take a shortcut around RLS, being
+-- invoker), but inconsistent with the "no default grants" posture
+-- established below -- fixed here for the same reason, not because it
+-- was ever exploitable.
+
+-- =========================================================================
+-- LANDING PAGE AGGREGATE FUNCTIONS (Phase 4)
+--
+-- PostgREST (what @supabase/supabase-js actually talks to) can't express
+-- arbitrary GROUP BY / aggregate queries or a caller-supplied time-window
+-- parameter -- it only does filters and foreign-key joins. Every one of
+-- these needs a time window, so they're RPC functions, not plain tables
+-- or views (a view can't take a parameter).
+--
+-- SECURITY INVOKER, always -- never DEFINER. A SECURITY DEFINER function
+-- runs with the OWNER's privileges (typically a superuser-ish role that
+-- owns the tables), which would silently bypass RLS entirely for every
+-- table the function touches, regardless of who's allowed to call the
+-- function itself. INVOKER means the function runs as whatever role
+-- actually called it (`anon`, via the frontend's anon key) -- so RLS
+-- applies inside the function body exactly as if `anon` had run the
+-- query directly. Verified, not just asserted: see
+-- db/tests/landing_functions_test.sql, which proves this with a direct
+-- comparison -- an invoker test function reading catalog_run (RLS
+-- enabled, zero policies, so even anon-with-full-grants sees 0 rows) vs.
+-- a security-definer version of the identical query, which sees the
+-- real row count. That's the concrete failure mode INVOKER prevents.
+--
+-- EXECUTE is explicitly revoked from PUBLIC and re-granted to `anon`
+-- only, on every function below -- never left on Postgres's default
+-- EXECUTE-TO-PUBLIC grant. Matches db/rls_policies.sql's existing
+-- explicit-grant posture for tables; a function is just as much a way
+-- to reach table data as a SELECT is.
+--
+-- All take `p_since timestamptz` -- NULL means unbounded ("All time"),
+-- otherwise only execution rows with started_at >= p_since count. All
+-- STABLE (pure reads, result depends only on arguments + current table
+-- contents within one statement).
+-- =========================================================================
+
+-- Global page subtitle (<N> tracked, <M> working) and the landing page's
+-- "Models Available" KPI, which the design doc defines as the exact same
+-- window-based distinct-count -- one function, two consumers.
+create or replace function landing_subtitle_counts(p_since timestamptz)
+returns table(tracked bigint, working bigint)
+language sql stable security invoker
+as $$
+  select
+    (select count(*) from model) as tracked,
+    (select count(distinct r.model_slug)
+     from result r
+     join execution e on e.id = r.execution_id
+     where r.success = true
+       and (p_since is null or e.started_at >= p_since)) as working;
+$$;
+
+revoke execute on function landing_subtitle_counts(timestamptz) from public;
+grant execute on function landing_subtitle_counts(timestamptz) to anon;
+
+-- Best Response / Best Throughput KPIs, model + provider shown per
+-- design doc. Combined into one round trip via a full outer join on
+-- two independent 0-or-1-row subqueries -- if one side has no
+-- successes in-window at all, the other side's values still come back
+-- rather than the whole row disappearing.
+create or replace function landing_kpis(p_since timestamptz)
+returns table(
+  best_response_model_slug text,
+  best_response_provider text,
+  best_response_time_s numeric,
+  best_throughput_model_slug text,
+  best_throughput_provider text,
+  best_throughput_tok_s numeric
+)
+language sql stable security invoker
+as $$
+  select
+    br.model_slug, br.provider, br.response_time_s,
+    bt.model_slug, bt.provider, bt.tokens_per_sec
+  from
+    (select r.model_slug, m.provider, r.response_time_s
+     from result r
+     join execution e on e.id = r.execution_id
+     join model m on m.slug = r.model_slug
+     where r.success = true and (p_since is null or e.started_at >= p_since)
+     order by r.response_time_s asc
+     limit 1) br
+  full outer join
+    (select r.model_slug, m.provider, r.tokens_per_sec
+     from result r
+     join execution e on e.id = r.execution_id
+     join model m on m.slug = r.model_slug
+     where r.success = true and (p_since is null or e.started_at >= p_since)
+     order by r.tokens_per_sec desc
+     limit 1) bt
+  on true;
+$$;
+
+revoke execute on function landing_kpis(timestamptz) from public;
+grant execute on function landing_kpis(timestamptz) to anon;
+
+-- "Models Available Over Time, by Provider" -- the one query the schema
+-- check in design_decisions.md called out as needing a heavier live
+-- query (Result joined to Model, grouped by provider, per execution).
+-- "Models Available Over Time" (the overall, non-provider-split trend)
+-- deliberately has NO function -- it's a direct, unfiltered-by-join read
+-- of execution.started_at/models_succeeded_count, which PostgREST can
+-- do natively without an RPC.
+create or replace function landing_availability_by_provider(p_since timestamptz)
+returns table(started_at timestamptz, provider text, succeeded_count bigint)
+language sql stable security invoker
+as $$
+  select e.started_at, m.provider, count(*) as succeeded_count
+  from result r
+  join execution e on e.id = r.execution_id
+  join model m on m.slug = r.model_slug
+  where r.success = true
+    and (p_since is null or e.started_at >= p_since)
+  group by e.started_at, m.provider
+  order by e.started_at asc, m.provider asc;
+$$;
+
+revoke execute on function landing_availability_by_provider(timestamptz) from public;
+grant execute on function landing_availability_by_provider(timestamptz) to anon;
+
+-- Top 5 Fastest / Top 5 Throughput tables.
+create or replace function landing_top5_fastest(p_since timestamptz)
+returns table(model_slug text, provider text, model_name text, best_response_time_s numeric)
+language sql stable security invoker
+as $$
+  select r.model_slug, m.provider, m.model_name, min(r.response_time_s) as best_response_time_s
+  from result r
+  join execution e on e.id = r.execution_id
+  join model m on m.slug = r.model_slug
+  where r.success = true
+    and (p_since is null or e.started_at >= p_since)
+  group by r.model_slug, m.provider, m.model_name
+  order by best_response_time_s asc
+  limit 5;
+$$;
+
+revoke execute on function landing_top5_fastest(timestamptz) from public;
+grant execute on function landing_top5_fastest(timestamptz) to anon;
+
+create or replace function landing_top5_throughput(p_since timestamptz)
+returns table(model_slug text, provider text, model_name text, best_tokens_per_sec numeric)
+language sql stable security invoker
+as $$
+  select r.model_slug, m.provider, m.model_name, max(r.tokens_per_sec) as best_tokens_per_sec
+  from result r
+  join execution e on e.id = r.execution_id
+  join model m on m.slug = r.model_slug
+  where r.success = true
+    and (p_since is null or e.started_at >= p_since)
+  group by r.model_slug, m.provider, m.model_name
+  order by best_tokens_per_sec desc
+  limit 5;
+$$;
+
+revoke execute on function landing_top5_throughput(timestamptz) from public;
+grant execute on function landing_top5_throughput(timestamptz) to anon;

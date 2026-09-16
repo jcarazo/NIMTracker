@@ -1,0 +1,11 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html {
+  @apply antialiased;
+}
+
+body {
+  @apply bg-tremor-background text-tremor-content dark:bg-dark-tremor-background dark:text-dark-tremor-content;
+}

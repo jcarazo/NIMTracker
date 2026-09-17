@@ -262,3 +262,66 @@ export async function fetchModelDetailAvailabilityHeatmap(
   if (error) throw error
   return data ?? []
 }
+
+// ---------------------------------------------------------------------
+// Executions page (Phase 6)
+// ---------------------------------------------------------------------
+
+// Zero new RPC functions needed for this page -- both queries below are
+// expressible as direct PostgREST reads: the collapsed-row list is an
+// unaggregated `execution` read (models_tested_count/succeeded_count/
+// fastest_* are already denormalized columns there, built for exactly
+// this page -- see db/schema.sql), and the expanded-row detail uses
+// PostgREST's foreign-key resource embedding (result.model_slug
+// references model.slug) instead of a hand-written join.
+
+export type ExecutionListRow = {
+  id: string
+  started_at: string
+  models_tested_count: number
+  models_succeeded_count: number
+  fastest_model_slug: string | null
+  fastest_response_time_s: number | null
+}
+
+export async function fetchExecutionsList(since: string | null): Promise<ExecutionListRow[]> {
+  let query = supabase
+    .from('execution')
+    .select('id, started_at, models_tested_count, models_succeeded_count, fastest_model_slug, fastest_response_time_s')
+    .order('started_at', { ascending: false })
+  if (since) query = query.gte('started_at', since)
+  const { data, error } = await query
+  if (error) throw error
+  return data ?? []
+}
+
+export type ExecutionDetailRow = {
+  model_slug: string
+  success: boolean
+  error_category: string | null
+  response_time_s: number | null
+  tokens_per_sec: number | null
+  response_text: string | null
+  error_body: string | null
+  model: { model_name: string; provider: string } | null
+}
+
+// Fetched lazily, one execution at a time, only when a row is actually
+// expanded -- a wide window ("All time") can mean hundreds of
+// executions, and only one is ever open at once.
+//
+// `resolution != 'excluded_non_text'` is currently a no-op -- confirmed
+// against live data, that resolution value is never actually written
+// (see CLAUDE.md, "Core domain logic") -- kept anyway so this page
+// doesn't silently start including excluded rows the day that changes,
+// matching every other query that touches `result`.
+export async function fetchExecutionDetail(executionId: string): Promise<ExecutionDetailRow[]> {
+  const { data, error } = await supabase
+    .from('result')
+    .select('model_slug, success, error_category, response_time_s, tokens_per_sec, response_text, error_body, model(model_name, provider)')
+    .eq('execution_id', executionId)
+    .neq('resolution', 'excluded_non_text')
+    .order('model_slug')
+  if (error) throw error
+  return (data ?? []) as ExecutionDetailRow[]
+}

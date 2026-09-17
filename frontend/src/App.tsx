@@ -1,5 +1,6 @@
 import { HashRouter, Route, Routes } from 'react-router-dom'
 import { Layout } from './components/Layout'
+import { ExecutionsPage } from './pages/ExecutionsPage'
 import { LandingPage } from './pages/LandingPage'
 import { ModelDetailPage } from './pages/ModelDetailPage'
 import { ModelsPage } from './pages/ModelsPage'
@@ -27,6 +28,7 @@ function App() {
           <Route index element={<LandingPage />} />
           <Route path="models" element={<ModelsPage />} />
           <Route path="models/*" element={<ModelDetailPage />} />
+          <Route path="executions" element={<ExecutionsPage />} />
         </Route>
       </Routes>
     </HashRouter>

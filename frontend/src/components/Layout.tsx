@@ -24,6 +24,9 @@ export function Layout() {
             <NavLink to="/models" className={NAV_LINK_CLASS}>
               Models
             </NavLink>
+            <NavLink to="/executions" className={NAV_LINK_CLASS}>
+              Executions
+            </NavLink>
           </nav>
         </div>
       </header>

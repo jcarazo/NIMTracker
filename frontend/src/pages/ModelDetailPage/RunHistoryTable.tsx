@@ -2,19 +2,17 @@ import {
   Badge,
   Button,
   Card,
-  Dialog,
-  DialogPanel,
   Table,
   TableBody,
   TableCell,
   TableHead,
   TableHeaderCell,
   TableRow,
-  Text,
   Title,
 } from '@tremor/react'
 import { useState } from 'react'
 import { EmptyState } from '../../components/EmptyState'
+import { ResponseModal } from '../../components/ResponseModal'
 import { colorForErrorCategory } from '../../lib/chartColors'
 import type { RunHistoryRow } from '../../lib/queries'
 
@@ -75,15 +73,7 @@ export function RunHistoryTable({ rows }: { rows: RunHistoryRow[] }) {
         </Table>
       )}
 
-      <Dialog open={selected != null} onClose={() => setSelected(null)}>
-        <DialogPanel>
-          <Title>{selected?.success ? 'Response' : `Error (${selected?.error_category ?? 'other'})`}</Title>
-          <Text className="mt-1">{selected && new Date(selected.started_at).toLocaleString()}</Text>
-          <pre className="mt-4 max-h-96 overflow-auto whitespace-pre-wrap rounded bg-gray-50 p-3 text-sm">
-            {selected?.response_text || selected?.error_body || '(empty)'}
-          </pre>
-        </DialogPanel>
-      </Dialog>
+      <ResponseModal data={selected} onClose={() => setSelected(null)} />
     </Card>
   )
 }

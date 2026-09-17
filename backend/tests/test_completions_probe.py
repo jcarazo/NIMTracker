@@ -131,6 +131,104 @@ def test_run_completions_sweep_calls_each_model_exactly_once(conn, seed_model, m
     assert call_count["n"] == 2  # exactly one attempt per model -- no in-run retries
 
 
+def test_run_completions_sweep_success_sets_last_seen_working_at(conn, seed_model, monkeypatch):
+    # The gap found while building Phase 5's Models table: this column
+    # existed since Phase 1 but no code ever wrote it before
+    # db.update_model_lifecycle. A fresh success must move it forward
+    # and must NOT touch delisted_at/delisted_reason.
+    seed_model(conn, slug="acme/a", catalog_href="/acme/a", api_model_id="acme/a")
+
+    monkeypatch.setattr(
+        completions_probe, "call_model",
+        lambda client, api_key, api_model_id: _fake_result(),
+    )
+    completions_probe.run_completions_sweep(conn, api_key="fake-key")
+
+    with conn.cursor() as cur:
+        cur.execute("select last_seen_working_at, delisted_at, delisted_reason from model where slug = 'acme/a'")
+        row = cur.fetchone()
+    assert row["last_seen_working_at"] is not None
+    assert row["delisted_at"] is None
+    assert row["delisted_reason"] is None
+
+
+def test_run_completions_sweep_removed_failure_sets_delisted_fields(conn, seed_model, monkeypatch):
+    seed_model(conn, slug="acme/a", catalog_href="/acme/a", api_model_id="acme/a")
+
+    monkeypatch.setattr(
+        completions_probe, "call_model",
+        lambda client, api_key, api_model_id: _fake_result(
+            success=False, error_category="removed", error_body="Model retired 2026-01-01.",
+            completion_tokens=None, prompt_tokens=None, tokens_per_sec=None, response_text=None,
+        ),
+    )
+    completions_probe.run_completions_sweep(conn, api_key="fake-key")
+
+    with conn.cursor() as cur:
+        cur.execute("select last_seen_working_at, delisted_at, delisted_reason from model where slug = 'acme/a'")
+        row = cur.fetchone()
+    assert row["last_seen_working_at"] is None  # never had a success -- must stay null
+    assert row["delisted_at"] is not None
+    assert row["delisted_reason"] == "Model retired 2026-01-01."
+
+
+def test_run_completions_sweep_non_removed_failure_leaves_lifecycle_fields_untouched(conn, seed_model, monkeypatch):
+    # A single timeout/rate-limit/etc. is not a delisting signal --
+    # that's what model_state_as_of()'s live 24h-rolling-window check is
+    # for. Only an explicit 'removed' classification (404/410) sets
+    # delisted_at directly.
+    seed_model(conn, slug="acme/a", catalog_href="/acme/a", api_model_id="acme/a")
+
+    monkeypatch.setattr(
+        completions_probe, "call_model",
+        lambda client, api_key, api_model_id: _fake_result(
+            success=False, error_category="timeout",
+            completion_tokens=None, prompt_tokens=None, tokens_per_sec=None, response_text=None,
+        ),
+    )
+    completions_probe.run_completions_sweep(conn, api_key="fake-key")
+
+    with conn.cursor() as cur:
+        cur.execute("select last_seen_working_at, delisted_at, delisted_reason from model where slug = 'acme/a'")
+        row = cur.fetchone()
+    assert row["last_seen_working_at"] is None
+    assert row["delisted_at"] is None
+    assert row["delisted_reason"] is None
+
+
+def test_run_completions_sweep_recovery_clears_delisted_fields(conn, seed_model, monkeypatch):
+    # The real documented case (CLAUDE.md): nemotron-3-nano-30b-a3b
+    # worked, then 410'd, then worked again in a later run. A fresh
+    # success must clear a prior delisting, not leave it stuck.
+    seed_model(conn, slug="acme/a", catalog_href="/acme/a", api_model_id="acme/a")
+
+    monkeypatch.setattr(
+        completions_probe, "call_model",
+        lambda client, api_key, api_model_id: _fake_result(
+            success=False, error_category="removed", error_body="410",
+            completion_tokens=None, prompt_tokens=None, tokens_per_sec=None, response_text=None,
+        ),
+    )
+    completions_probe.run_completions_sweep(conn, api_key="fake-key")
+
+    with conn.cursor() as cur:
+        cur.execute("select delisted_at from model where slug = 'acme/a'")
+        assert cur.fetchone()["delisted_at"] is not None
+
+    monkeypatch.setattr(
+        completions_probe, "call_model",
+        lambda client, api_key, api_model_id: _fake_result(),
+    )
+    completions_probe.run_completions_sweep(conn, api_key="fake-key")
+
+    with conn.cursor() as cur:
+        cur.execute("select last_seen_working_at, delisted_at, delisted_reason from model where slug = 'acme/a'")
+        row = cur.fetchone()
+    assert row["last_seen_working_at"] is not None
+    assert row["delisted_at"] is None
+    assert row["delisted_reason"] is None
+
+
 def test_run_completions_sweep_uses_api_model_id_not_slug(conn, seed_model, monkeypatch):
     # slug and api_model_id deliberately differ here to prove the call
     # uses api_model_id -- this is the entire reason that column exists.

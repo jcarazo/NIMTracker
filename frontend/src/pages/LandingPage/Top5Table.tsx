@@ -9,12 +9,14 @@ import {
   TableRow,
   Title,
 } from '@tremor/react'
+import { useNavigate } from 'react-router-dom'
 import { EmptyState } from '../../components/EmptyState'
 import { colorForProvider } from '../../lib/chartColors'
 
-// Deliberately not clickable / no link-through to a model detail page
-// yet -- that page is Phase 5 scope and doesn't exist. See
-// NIMTracker-implementation-plan.md section 9 / CLAUDE.md.
+// Row click-through to the model detail page -- design doc: the detail
+// page is "reached by clicking a row in the Models table (or the
+// landing page's Top 5 tables)". Added in Phase 5 once that page
+// actually exists (until then this table had no link-through target).
 type Row = {
   model_slug: string
   provider: string
@@ -29,6 +31,8 @@ type Props<T extends Row> = {
 }
 
 export function Top5Table<T extends Row>({ title, rows, metricLabel, formatMetric }: Props<T>) {
+  const navigate = useNavigate()
+
   return (
     <Card>
       <Title>{title}</Title>
@@ -45,7 +49,11 @@ export function Top5Table<T extends Row>({ title, rows, metricLabel, formatMetri
           </TableHead>
           <TableBody>
             {rows.map((row) => (
-              <TableRow key={row.model_slug}>
+              <TableRow
+                key={row.model_slug}
+                className="cursor-pointer hover:bg-gray-50"
+                onClick={() => navigate(`/models/${row.model_slug}`)}
+              >
                 {/* Tremor's default column sizing gave the model name
                     column ~318px for a name as short as "gpt-oss-20b",
                     overflowing this two-column-per-row layout's ~500px

@@ -198,6 +198,19 @@ def run_completions_sweep(conn, api_key: str, concurrency: int = CONCURRENCY, ti
             "response_text": r["response_text"],
             "resolution": res,
         })
+        # last_seen_working_at / delisted_at / delisted_reason -- the
+        # fields model.slug's own schema comment says this job owns.
+        # Found missing entirely (never written by any prior code) while
+        # building Phase 5's Models table, which is the first consumer
+        # that reads last_seen_working_at. See db.update_model_lifecycle.
+        db.update_model_lifecycle(
+            conn,
+            m["slug"],
+            success=r["success"],
+            error_category=r["error_category"],
+            as_of=started_at,
+            delisted_reason=r["error_body"] if r["error_category"] == "removed" else None,
+        )
 
     conn.commit()
 

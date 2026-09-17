@@ -167,3 +167,67 @@ def insert_result(conn: psycopg.Connection, result: dict) -> None:
             """,
             result,
         )
+
+
+_UPDATE_MODEL_LIFECYCLE_SQL = """
+update model
+set
+  last_seen_working_at = case when %(success)s then %(as_of)s else last_seen_working_at end,
+  delisted_at = case
+    when %(success)s then null
+    when %(error_category)s = 'removed' then %(as_of)s
+    else delisted_at
+  end,
+  delisted_reason = case
+    when %(success)s then null
+    when %(error_category)s = 'removed' then %(delisted_reason)s
+    else delisted_reason
+  end,
+  updated_at = now()
+where slug = %(slug)s
+"""
+
+
+def update_model_lifecycle(
+    conn: psycopg.Connection,
+    slug: str,
+    *,
+    success: bool,
+    error_category: str | None,
+    as_of,
+    delisted_reason: str | None = None,
+) -> None:
+    """The write path model.last_seen_working_at/delisted_at/delisted_reason
+    actually needed -- these three columns existed in the schema since
+    Phase 1 (see the "Deliberately NOT touched" comment on upsert_model
+    above) but were never written by any code until this function, found
+    missing only once Phase 5's Models table tried to read
+    last_seen_working_at against the live project and got zero rows back
+    despite real recorded successes.
+
+    On success: last_seen_working_at moves forward, delisted_at/reason
+    clear back to null -- a model that comes back working (the real
+    nemotron-3-nano-30b-a3b case in CLAUDE.md: worked, then 410'd, then
+    worked again in a later run) must stop reading as delisted.
+
+    On a 'removed'-category failure (404/410, per resolution.py's
+    classify_error): delisted_at/reason are set immediately, per the
+    schema's own "set immediately on an explicit 410" comment.
+    last_seen_working_at is left untouched either way -- it only ever
+    moves forward on a real success.
+
+    Any other failure category touches neither field -- a single
+    timeout/rate-limit/etc. is not a delisting signal; that's exactly
+    what model_state_as_of()'s live 24h-rolling-window check is for.
+    """
+    with conn.cursor() as cur:
+        cur.execute(
+            _UPDATE_MODEL_LIFECYCLE_SQL,
+            {
+                "slug": slug,
+                "success": success,
+                "error_category": error_category,
+                "as_of": as_of,
+                "delisted_reason": delisted_reason,
+            },
+        )

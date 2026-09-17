@@ -21,6 +21,19 @@
 -- the GRANT layer alone, the opposite of what an earlier version of
 -- this comment claimed. Add a SELECT policy later only if a future view
 -- actually needs to read it.
+--
+-- The table-level default grant described above and the FUNCTION-level
+-- equivalent are two DIFFERENT Supabase mechanisms, not the same one
+-- applied twice -- don't assume fixing/understanding one covers the
+-- other. Tables get broad default privileges to `anon` specifically
+-- (this file exists because of it). Functions get their own separate
+-- per-role `ALTER DEFAULT PRIVILEGES` that auto-grant EXECUTE to
+-- `anon`, `authenticated`, AND `service_role` individually -- discovered
+-- in Phase 5 when `authenticated`/`service_role` turned up with silent
+-- EXECUTE on every RPC function despite each one's own
+-- `revoke ... from public` line. See db/schema.sql's long comment above
+-- the landing functions and its "GRANT HYGIENE FIX" block for the full
+-- writeup and the fix (both retroactive and going-forward).
 
 alter table model enable row level security;
 alter table execution enable row level security;

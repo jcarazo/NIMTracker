@@ -51,3 +51,52 @@ const FALLBACK_PROVIDER_COLOR: TremorColor = 'gray'
 export function colorForProvider(provider: string): TremorColor {
   return PROVIDER_COLORS[provider] ?? FALLBACK_PROVIDER_COLOR
 }
+
+// model_state_as_of()'s three possible return values, plus the
+// frontend-only 'unknown' fallback for a null/never-computed state.
+// Used by the Models table's UPTIME badge, the model detail page's
+// state chip, and the Availability Heatmap -- one mapping so all three
+// agree on what "removed" looks like (Phase 5: design doc calls for a
+// visually distinct third state, not a binary up/down).
+export type ModelState = 'available' | 'degraded' | 'removed' | 'unknown'
+
+export const STATE_COLORS: Record<ModelState, TremorColor> = {
+  available: 'emerald',
+  degraded: 'amber',
+  removed: 'rose',
+  unknown: 'gray',
+}
+
+export const STATE_LABELS: Record<ModelState, string> = {
+  available: 'Available',
+  degraded: 'Degraded',
+  removed: 'Removed',
+  unknown: 'Unknown',
+}
+
+export function colorForState(state: string | null | undefined): TremorColor {
+  return STATE_COLORS[(state as ModelState) ?? 'unknown'] ?? STATE_COLORS.unknown
+}
+
+export function labelForState(state: string | null | undefined): string {
+  return STATE_LABELS[(state as ModelState) ?? 'unknown'] ?? STATE_LABELS.unknown
+}
+
+// The full validated error taxonomy (CLAUDE.md, "Error taxonomy") --
+// fixed 7-value palette for the Error Breakdown donut, spread across
+// distinct hues the same way PROVIDER_COLORS is, so no two slices read
+// as "basically the same color" the way the first provider-palette pass
+// didn't (see that fix above).
+export const ERROR_CATEGORY_COLORS: Record<string, TremorColor> = {
+  removed: 'rose',
+  rate_limited: 'amber',
+  degraded: 'orange',
+  timeout: 'violet',
+  server_error: 'red',
+  empty_response: 'cyan',
+  other: 'gray',
+}
+
+export function colorForErrorCategory(category: string): TremorColor {
+  return ERROR_CATEGORY_COLORS[category] ?? 'gray'
+}

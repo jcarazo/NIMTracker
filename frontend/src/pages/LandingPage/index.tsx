@@ -1,4 +1,4 @@
-import { Callout, Flex, Title } from '@tremor/react'
+import { Callout, Flex } from '@tremor/react'
 import { PageSubtitle } from '../../components/PageSubtitle'
 import { TimeRangeSelector } from '../../components/TimeRangeSelector'
 import { useTimeRange } from '../../hooks/useTimeRange'
@@ -15,7 +15,6 @@ export function LandingPage() {
     <main className="mx-auto max-w-6xl space-y-6 p-6">
       <Flex justifyContent="between" alignItems="start" flexDirection="col" className="gap-2 sm:flex-row">
         <div>
-          <Title>NIMTracker</Title>
           <PageSubtitle
             counts={state.status === 'ready' ? state.data.subtitle : null}
             loading={state.status === 'loading'}

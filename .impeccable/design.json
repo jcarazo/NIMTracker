@@ -1,0 +1,111 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-09-18T00:00:00Z",
+  "title": "Design System: NIMTracker",
+  "extensions": {
+    "colorMeta": {
+      "primary": { "role": "primary", "displayName": "Signal Blue", "canonical": "#3b82f6", "tonalRamp": ["#1e3a8a", "#1e40af", "#1d4ed8", "#2563eb", "#3b82f6", "#60a5fa", "#93c5fd", "#bfdbfe"] },
+      "primary-active": { "role": "primary", "displayName": "Signal Blue, Active", "canonical": "#2563eb", "tonalRamp": ["#1e3a8a", "#1e40af", "#1d4ed8", "#2563eb", "#3b82f6", "#60a5fa", "#93c5fd", "#bfdbfe"] },
+      "neutral-canvas": { "role": "neutral", "displayName": "Canvas White", "canonical": "#ffffff", "tonalRamp": ["#111827", "#1f2937", "#374151", "#4b5563", "#6b7280", "#9ca3af", "#d1d5db", "#f9fafb"] },
+      "neutral-border": { "role": "neutral", "displayName": "Hairline Gray", "canonical": "#e5e7eb", "tonalRamp": ["#111827", "#1f2937", "#374151", "#4b5563", "#6b7280", "#9ca3af", "#d1d5db", "#e5e7eb"] },
+      "neutral-text-muted": { "role": "neutral", "displayName": "Muted Ink", "canonical": "#6b7280", "tonalRamp": ["#111827", "#1f2937", "#374151", "#4b5563", "#6b7280", "#9ca3af", "#d1d5db", "#f3f4f6"] },
+      "neutral-text-strong": { "role": "neutral", "displayName": "Strong Ink", "canonical": "#111827", "tonalRamp": ["#111827", "#1f2937", "#374151", "#4b5563", "#6b7280", "#9ca3af", "#d1d5db", "#f3f4f6"] },
+      "signal-emerald": { "role": "data", "displayName": "Signal Emerald", "canonical": "#10b981", "tonalRamp": ["#064e3b", "#065f46", "#047857", "#059669", "#10b981", "#34d399", "#6ee7b7", "#a7f3d0"] },
+      "signal-emerald-strong": { "role": "data", "displayName": "Signal Emerald, Strong", "canonical": "#059669", "tonalRamp": ["#064e3b", "#065f46", "#047857", "#059669", "#10b981", "#34d399", "#6ee7b7", "#a7f3d0"] },
+      "signal-rose": { "role": "data", "displayName": "Signal Rose", "canonical": "#f43f5e", "tonalRamp": ["#881337", "#9f1239", "#be123c", "#e11d48", "#f43f5e", "#fb7185", "#fda4af", "#fecdd3"] },
+      "signal-rose-strong": { "role": "data", "displayName": "Signal Rose, Strong", "canonical": "#e11d48", "tonalRamp": ["#881337", "#9f1239", "#be123c", "#e11d48", "#f43f5e", "#fb7185", "#fda4af", "#fecdd3"] },
+      "signal-amber": { "role": "data", "displayName": "Signal Amber", "canonical": "#f59e0b", "tonalRamp": ["#78350f", "#92400e", "#b45309", "#d97706", "#f59e0b", "#fbbf24", "#fcd34d", "#fde68a"] },
+      "signal-amber-strong": { "role": "data", "displayName": "Signal Amber, Strong", "canonical": "#d97706", "tonalRamp": ["#78350f", "#92400e", "#b45309", "#d97706", "#f59e0b", "#fbbf24", "#fcd34d", "#fde68a"] },
+      "signal-red": { "role": "data", "displayName": "Signal Red", "canonical": "#ef4444", "tonalRamp": ["#7f1d1d", "#991b1b", "#b91c1c", "#dc2626", "#ef4444", "#f87171", "#fca5a5", "#fecaca"] },
+      "signal-violet": { "role": "data", "displayName": "Signal Violet", "canonical": "#8b5cf6", "tonalRamp": ["#4c1d95", "#5b21b6", "#6d28d9", "#7c3aed", "#8b5cf6", "#a78bfa", "#c4b5fd", "#ddd6fe"] },
+      "signal-sky": { "role": "data", "displayName": "Signal Sky", "canonical": "#0ea5e9", "tonalRamp": ["#0c4a6e", "#075985", "#0369a1", "#0284c7", "#0ea5e9", "#38bdf8", "#7dd3fc", "#bae6fd"] },
+      "signal-cyan": { "role": "data", "displayName": "Signal Cyan", "canonical": "#06b6d4", "tonalRamp": ["#164e63", "#155e75", "#0e7490", "#0891b2", "#06b6d4", "#22d3ee", "#67e8f9", "#a5f3fc"] },
+      "signal-orange": { "role": "data", "displayName": "Signal Orange", "canonical": "#f97316", "tonalRamp": ["#7c2d12", "#9a3412", "#c2410c", "#ea580c", "#f97316", "#fb923c", "#fdba74", "#fed7aa"] },
+      "signal-pink": { "role": "data", "displayName": "Signal Pink", "canonical": "#ec4899", "tonalRamp": ["#831843", "#9d174d", "#be185d", "#db2777", "#ec4899", "#f472b6", "#f9a8d4", "#fbcfe8"] },
+      "signal-gray": { "role": "data", "displayName": "Signal Gray (fallback)", "canonical": "#9ca3af", "tonalRamp": ["#111827", "#1f2937", "#374151", "#4b5563", "#6b7280", "#9ca3af", "#d1d5db", "#e5e7eb"] }
+    },
+    "typographyMeta": {
+      "metric": { "displayName": "Metric", "purpose": "The single biggest number on a page -- a KPI value. The true headline of every view." },
+      "title": { "displayName": "Title", "purpose": "Card titles, page titles, and the nav bar wordmark." },
+      "body": { "displayName": "Body", "purpose": "Default text: subtitle counts, table values, chart labels." },
+      "label": { "displayName": "Label", "purpose": "Table column headers -- same size as Body, distinguished by weight only." }
+    },
+    "shadows": [
+      { "name": "card", "value": "0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1)", "purpose": "The system's only shadow, applied uniformly to every Card." }
+    ],
+    "breakpoints": [
+      { "name": "md", "value": "768px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Card",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "White container with a hairline border and one soft shadow. Used for every KPI tile, chart, and table wrapper across all four pages.",
+      "html": "<div class=\"ds-card\"><p class=\"ds-label-muted\">Models Available</p><p class=\"ds-metric\">19</p></div>",
+      "css": ".ds-card { background: #ffffff; border-radius: 8px; padding: 24px; box-shadow: 0 0 0 1px #e5e7eb, 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1); } .ds-label-muted { font-size: 14px; line-height: 20px; color: #6b7280; margin: 0; } .ds-metric { font-size: 30px; line-height: 36px; font-weight: 600; color: #111827; margin: 4px 0 0; }"
+    },
+    {
+      "name": "Badge (Positive)",
+      "kind": "chip",
+      "refersTo": "badge-positive",
+      "description": "Categorical data badge, tint background + strong text. Positive variant shown; the same pattern applies to every provider/state/error-category color.",
+      "html": "<span class=\"ds-badge ds-badge-positive\">Available</span>",
+      "css": ".ds-badge { display: inline-flex; align-items: center; font-size: 14px; line-height: 20px; padding: 2px 10px; border-radius: 6px; font-weight: 500; } .ds-badge-positive { background: rgba(16, 185, 129, 0.1); color: #059669; }"
+    },
+    {
+      "name": "Badge (Critical)",
+      "kind": "chip",
+      "refersTo": "badge-critical",
+      "description": "Same badge pattern in the rose data color, used for the Removed model state and the `removed` error category.",
+      "html": "<span class=\"ds-badge ds-badge-critical\">Removed</span>",
+      "css": ".ds-badge { display: inline-flex; align-items: center; font-size: 14px; line-height: 20px; padding: 2px 10px; border-radius: 6px; font-weight: 500; } .ds-badge-critical { background: rgba(244, 63, 94, 0.1); color: #e11d48; }"
+    },
+    {
+      "name": "Table Row (interactive)",
+      "kind": "custom",
+      "refersTo": "table-row-interactive",
+      "description": "A clickable table row (Models table -> model detail, Executions collapsed -> expanded). Right-aligned numeric columns, hairline divider, gray-50 hover tint.",
+      "html": "<div class=\"ds-row\"><span class=\"ds-row-label\">nemotron-3-super-120b</span><span class=\"ds-row-value\">2.78s</span></div>",
+      "css": ".ds-row { display: flex; justify-content: space-between; align-items: center; padding: 14px 16px; border-bottom: 1px solid #e5e7eb; cursor: pointer; font-size: 14px; color: #6b7280; } .ds-row:hover { background: #f9fafb; } .ds-row-value { color: #111827; text-align: right; }"
+    },
+    {
+      "name": "Nav Bar",
+      "kind": "nav",
+      "refersTo": "nav-link-active",
+      "description": "Single horizontal bar shared by every page: wordmark at Title weight, links at Body size. Active route marked by color alone (Signal Blue Active), no underline or background.",
+      "html": "<header class=\"ds-nav\"><a class=\"ds-nav-wordmark\" href=\"#\">NIMTracker</a><nav class=\"ds-nav-links\"><a class=\"ds-nav-link ds-nav-link-active\" href=\"#\">Overview</a><a class=\"ds-nav-link\" href=\"#\">Models</a><a class=\"ds-nav-link\" href=\"#\">Executions</a></nav></header>",
+      "css": ".ds-nav { display: flex; align-items: center; gap: 24px; max-width: 1152px; margin: 0 auto; padding: 16px 24px; border-bottom: 1px solid #e5e7eb; } .ds-nav-wordmark { font-size: 18px; font-weight: 600; color: #111827; text-decoration: none; } .ds-nav-links { display: flex; gap: 16px; } .ds-nav-link { font-size: 14px; font-weight: 500; color: #6b7280; text-decoration: none; } .ds-nav-link:hover { color: #374151; } .ds-nav-link-active { color: #2563eb; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Instrument Panel",
+    "overview": "NIMTracker reads NVIDIA's free-tier model catalog once a day and probes every listed model with a real completions call once an hour, then puts the results in front of one operator: dense, legible readouts scanned at a glance, not a story told to a visitor. The visual system is Tremor's stock component defaults, deliberately unadorned -- white cards, a single restrained blue accent, and a wide categorical palette that exists purely to encode data (which provider, which state, which kind of failure), never for brand decoration. Nothing here performs; every color, weight, and spacing value is load-bearing for reading the data faster.\n\nThis is a public repository and a public GitHub Pages site, so a stranger could find and judge it -- the bar is portfolio-quality precision, not portfolio-quality spectacle. Craft shows up in exact alignment, a deliberately spread-out categorical palette, and consistent rhythm across four pages, not in flourish -- though verification found two same-hex reuses (state Degraded/error rate_limited; state Removed/error removed) that share a page and haven't collided yet only by data coincidence, see Colors and Do's and Don'ts.",
+    "keyCharacteristics": [
+      "Flat white cards on a white canvas -- depth is a single soft shadow plus a 1px border, never stacked layering.",
+      "One brand accent (blue), used sparingly: the primary trend line and the active nav state. Every other color on screen is categorical data encoding, not brand expression.",
+      "Numbers lead. The biggest, boldest text on every page is a metric value, not a heading.",
+      "Uniform right-aligned numeric table columns and a repeated max-w-6xl page frame keep all four pages feeling like one instrument, not four separate screens."
+    ],
+    "rules": [
+      { "name": "The Data-Only Rule", "body": "Every color outside Primary and Neutral exists to encode a specific data value (a provider, a state, an error category). None of them are available for decoration, emphasis, or a new UI affordance -- introducing a new hue means introducing a new data category, not a new visual accent.", "section": "colors" },
+      { "name": "The Sparse Accent Rule", "body": "Signal Blue appears in at most two places on any given screen: one aggregate trend line, one active-nav indicator. If a screen needs the brand color a third time, that's a sign something should be a Neutral or Data Encoding color instead.", "section": "colors" },
+      { "name": "The Metric-Leads Rule", "body": "The largest, boldest text on a page is always the number the operator came to check, never a section headline. A card's Title is always smaller and lighter than the Metric it introduces.", "section": "typography" },
+      { "name": "The One-Shadow Rule", "body": "There is exactly one elevation level. A design that reaches for a second, heavier shadow to signal \"more important\" should reach for typography (Metric vs. Title) instead -- this system separates importance by size and color, never by stacking depth.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do treat every non-Primary, non-Neutral color as data encoding first. Before introducing a new hue, ask what data value it represents.",
+      "Do keep the max-w-6xl page frame and 24px/16px spacing rhythm identical across every page, including any new one -- it's the main thing making four independent pages read as one tool.",
+      "Do let the Metric (30px/600) stay the largest text on a page. A new page's headline number belongs at Metric weight even if there's no room for a separate <h1>.",
+      "Do use the soft-tint-background + strong-text badge pattern for any new categorical value (a new provider, a new state) -- never a flat opaque badge fill.",
+      "Do treat the state/error-category same-hex overlaps (Degraded<->rate_limited, Removed<->removed, both literally identical hex, see Colors) as an open item, not a closed question -- the next time either combination shows up in real data, give the state badge and the donut a distinguishing cue (an icon, a border, a different shade) rather than letting two identical-colored elements sit on the same page unexamined."
+    ],
+    "donts": [
+      "Don't add a second shadow depth, a gradient, or a decorative illustration anywhere -- this is explicitly not meant to read as a marketing/SaaS landing surface (confirmed anti-reference); it's an operator's instrument, not a pitch.",
+      "Don't spend the Primary blue on more than an aggregate trend line and the active-nav state in any single view. A third use of blue on one screen is a sign it should be a Neutral or Data Encoding color instead.",
+      "Don't design around the model detail page's Capability Radar chart as if it renders -- it is a confirmed, currently-broken recharts component (see PRODUCT.md); treat its current on-screen output as a defect to eventually replace, not a shape to match or polish.",
+      "Don't give the model detail page its own nav entry -- it stays reachable only via row click-through by product decision, not an oversight to \"fix.\""
+    ]
+  }
+}

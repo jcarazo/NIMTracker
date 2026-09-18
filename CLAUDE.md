@@ -160,6 +160,19 @@ of each verification run lives in git history / conversation history, not repeat
     not a confirmed fix) with a prominent file-level comment explaining all of this. Needs a real
     decision — most likely trying a different recharts 2.x patch version, or dropping `RadarChart`
     for this specific visualization — not another round of guessing at `PolarRadiusAxis` props.
+- **Two real color collisions exist in the categorical palette (`frontend/src/lib/chartColors.ts`),
+  confirmed via direct swatch comparison, not just reasoned about** — `Degraded` (model state) and
+  `rate_limited` (error category) are both literally `#f59e0b`; `Removed` (model state) and
+  `removed` (error category) are both literally `#f43f5e`, not just similar shades. Both pairs are
+  currently invisible only because `rate_limited` has never fired once in this project's history and
+  no model is currently in `Removed` state — a data coincidence, not evidence the palette is safe.
+  The model detail page renders the state badge and the Error Breakdown donut on the same screen, so
+  if either condition ever occurs for a real model, its state badge and a donut slice will render in
+  identical color, side by side. **Before that page ships as one of these two states colliding for
+  real, give the state badge and the donut a distinguishing cue (an icon, a border, a different
+  shade)** — don't rely on the coincidence continuing. Full detail, including how this was verified
+  (a real live-page screenshot plus a labeled constructed swatch comparison, since live data can't
+  currently produce either collision), lives in `DESIGN.md`'s Colors section.
 - **Deferred, not forgotten, with reasons:**
   - Light/dark theme toggle — do it once, after every page exists, not piecemeal per-page.
 - `db/tests/*.sql` (`model_state_as_of_test.sql`, `rls_test.sql`, `landing_functions_test.sql`,

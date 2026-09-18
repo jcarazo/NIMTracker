@@ -173,6 +173,25 @@ of each verification run lives in git history / conversation history, not repeat
   shade)** — don't rely on the coincidence continuing. Full detail, including how this was verified
   (a real live-page screenshot plus a labeled constructed swatch comparison, since live data can't
   currently produce either collision), lives in `DESIGN.md`'s Colors section.
+- **`frontend/src/lib/queries.ts`'s `fetchExecutionDetail` cast (`ExecutionDetailRow[]`) used to
+  fail `npm run build` with TS2352** — the PostgREST `model(...)` embed's supabase-js-inferred shape
+  (an array, since no typed `Database` schema is passed to `createClient()`, see `lib/supabase.ts`)
+  doesn't structurally overlap with `ExecutionDetailRow`'s single-object `model`. Introduced in
+  `dbf4759` ("Phase 6: Executions page", 2026-09-17) and sitting broken through two follow-up commits
+  — confirmed via `git log -S` on the exact cast line, not assumed; only surfaced once `npx tsc -b`
+  replaced the silently-no-op `npx tsc --noEmit` (see below). **Fixed**: cast through `unknown`
+  first (`as unknown as ExecutionDetailRow[]`), per TS2352's own suggestion — the runtime shape is
+  genuinely correct (confirmed against live data throughout the Executions page), this was a
+  type-inference gap, not a real mismatch, so the fix is the cast, not a data reshape. Verified via a
+  fresh `npx tsc -b` and `npm run build`, both clean.
+- **Why the build error above went uncaught through two Phase 6 follow-up commits: the type-check
+  command this file used to document, bare `npx tsc --noEmit`, was a silent no-op** — this project's
+  root `tsconfig.json` is solution-style (`files: []`, only `references`), and plain `tsc` without
+  `-b` never traverses references, so it type-checked zero files and exited 0 regardless of real
+  errors (confirmed via `npx tsc --noEmit --listFiles` printing nothing). Every "TSC CLEAN" reported
+  against that command during Phase 5, Phase 6, and later verification passes was never actually
+  checked. **Fixed** — "Setup / commands" below now documents `npx tsc -b`, verified directly to
+  catch the real `queries.ts` error this same bare command missed.
 - **Deferred, not forgotten, with reasons:**
   - Light/dark theme toggle — do it once, after every page exists, not piecemeal per-page.
 - `db/tests/*.sql` (`model_state_as_of_test.sql`, `rls_test.sql`, `landing_functions_test.sql`,
@@ -392,8 +411,18 @@ like natural additions.
   ```
   cd frontend && npm install
   npm run dev              # local dev server; shut it down when done verifying, don't leave it running silently
-  npx tsc --noEmit         # type-check
+  npx tsc -b                # type-check -- NOT `npx tsc --noEmit` (see below)
   npm run build             # tsc -b && vite build
   ```
   `frontend/.env` holds `VITE_SUPABASE_URL`/`VITE_SUPABASE_ANON_KEY` — the anon key is a publishable
   key, safe to have in this file and in the built bundle (see Architecture, "Security model").
+  **Use `npx tsc -b`, never bare `npx tsc --noEmit`, to type-check.** This project's root
+  `tsconfig.json` is solution-style (`files: []`, only `references` to `tsconfig.app.json`/
+  `tsconfig.node.json`); plain `tsc` without `-b` never traverses references, so bare `npx tsc
+  --noEmit` silently type-checks zero files and exits 0 regardless of real errors (confirmed via
+  `npx tsc --noEmit --listFiles` printing nothing). `npx tsc -b` doesn't need its own `--noEmit`
+  flag — both referenced tsconfigs already set `noEmit: true` themselves — and it's the exact same
+  check `npm run build` already runs as its first step, verified directly: both commands catch the
+  real `queries.ts` error documented above and neither writes any output file. A previous version of
+  this file documented the broken bare form; every "TSC CLEAN" reported against it during Phase 5,
+  Phase 6, and later verification passes was never actually checked.

@@ -26,6 +26,17 @@ export function KpiRow({ subtitle, kpis }: Props) {
       <Card>
         <Text>Models Available</Text>
         <Metric>{subtitle.working}</Metric>
+        {/* Matches Best Response/Best Throughput's secondary-line
+            pattern (mt-2 Text row) so all three cards read as one
+            consistent treatment -- previously this card's Metric sat
+            alone with visibly more empty space below it than its
+            siblings (confirmed via /impeccable critique: identical
+            135.97px card heights via CSS Grid stretch, but ~40px more
+            unused whitespace here since the other two cards fill that
+            space with real content). */}
+        <Text className="mt-2">
+          {subtitle.working} of {subtitle.tracked} tracked
+        </Text>
       </Card>
 
       <Card>

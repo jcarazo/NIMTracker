@@ -13,7 +13,7 @@ import {
 import { Fragment, useState } from 'react'
 import { EmptyState } from '../../components/EmptyState'
 import { ResponseModal, type ResponseModalData } from '../../components/ResponseModal'
-import { colorForErrorCategory, colorForProvider } from '../../lib/chartColors'
+import { BADGE_CHIP_CLASSNAME, colorForErrorCategory, colorForProvider } from '../../lib/chartColors'
 import { fetchExecutionDetail, type ExecutionDetailRow, type ExecutionListRow } from '../../lib/queries'
 
 type DetailState =
@@ -75,14 +75,26 @@ function ExpandedDetail({
           <TableCell>
             <div className="flex items-center gap-2 pl-6">
               <span>{row.model?.model_name ?? row.model_slug}</span>
-              {row.model?.provider && <Badge color={colorForProvider(row.model.provider)}>{row.model.provider}</Badge>}
+              {row.model?.provider && (
+                <Badge color={colorForProvider(row.model.provider)} size="xs" className={BADGE_CHIP_CLASSNAME}>
+                  {row.model.provider}
+                </Badge>
+              )}
             </div>
           </TableCell>
           <TableCell>
             {row.success ? (
-              <Badge color="emerald">Success</Badge>
+              <Badge color="emerald" size="xs" className={BADGE_CHIP_CLASSNAME}>
+                Success
+              </Badge>
             ) : (
-              <Badge color={colorForErrorCategory(row.error_category ?? 'other')}>{row.error_category ?? 'other'}</Badge>
+              <Badge
+                color={colorForErrorCategory(row.error_category ?? 'other')}
+                size="xs"
+                className={BADGE_CHIP_CLASSNAME}
+              >
+                {row.error_category ?? 'other'}
+              </Badge>
             )}
           </TableCell>
           <TableCell className="text-right">

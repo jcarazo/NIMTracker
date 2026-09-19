@@ -15,7 +15,7 @@ import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { EmptyState } from '../../components/EmptyState'
 import { StateBadge } from '../../components/StateBadge'
-import { colorForProvider } from '../../lib/chartColors'
+import { BADGE_CHIP_CLASSNAME, colorForProvider } from '../../lib/chartColors'
 import type { ModelsTableRow, SparklinePoint } from '../../lib/queries'
 
 function formatSeconds(value: number | null): string {
@@ -88,7 +88,9 @@ export function ModelsTable({ rows, sparklinesByModel }: Props) {
                       <span className="max-w-[160px] truncate" title={row.model_name}>
                         {row.model_name}
                       </span>
-                      <Badge color={colorForProvider(row.provider)}>{row.provider}</Badge>
+                      <Badge color={colorForProvider(row.provider)} size="xs" className={BADGE_CHIP_CLASSNAME}>
+                        {row.provider}
+                      </Badge>
                     </div>
                   </TableCell>
                   <TableCell className="text-right">{formatSeconds(row.avg_response_time_s)}</TableCell>

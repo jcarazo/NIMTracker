@@ -42,6 +42,24 @@ export const PROVIDER_COLORS: Record<string, TremorColor> = {
   'Mistral AI': 'pink',
 }
 
+// Compact "chip" treatment applied to every Badge in the app, matching
+// the proportions of NIMStats' own provider-chip (the predecessor tool
+// this project replaces) rather than Tremor's stock Badge size, which
+// read as oversized once badges started appearing densely (the Top 5
+// tables' Provider column in particular). Pair with Tremor's `size="xs"`
+// prop, which already gives the right padding (px-2 py-0.5 = NIMStats'
+// literal `2px 8px`) -- this constant only needs to override what `xs`
+// doesn't cover: font-size down to 10px (below Tailwind's smallest
+// preset, text-xs, which is 12px), weight, case, tracking, and a
+// tighter 4px radius than Tremor's own 6px `rounded-tremor-small`.
+// Every value here is a standard Tailwind utility group (font-size,
+// font-weight, radius), which tailwind-merge already recognizes as
+// conflicting with Tremor's own classes and overrides correctly without
+// needing `!important` -- confirmed live, unlike the AvailabilityChart
+// TabList fix, which needed `!` because that was a runtime-constructed
+// `data-[selected]:` class Tailwind's JIT scanner can't see at all.
+export const BADGE_CHIP_CLASSNAME = 'text-[10px] font-bold uppercase tracking-[0.5px] rounded-[4px]'
+
 const FALLBACK_PROVIDER_COLOR: TremorColor = 'gray'
 
 // A provider not in the map above (a new one the catalog job picked up

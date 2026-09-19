@@ -42,13 +42,13 @@ export function LandingPage() {
             <Top5Table
               title="Top 5 Fastest Models"
               rows={state.data.top5Fastest}
-              metricLabel="Best Time"
+              metricLabel="Best"
               formatMetric={(row) => `${row.best_response_time_s.toFixed(2)}s`}
             />
             <Top5Table
               title="Top 5 Throughput"
               rows={state.data.top5Throughput}
-              metricLabel="Best Throughput"
+              metricLabel="Best"
               formatMetric={(row) => `${row.best_tokens_per_sec.toFixed(1)} tok/s`}
             />
           </div>

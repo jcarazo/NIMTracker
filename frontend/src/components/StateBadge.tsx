@@ -1,5 +1,5 @@
 import { Badge } from '@tremor/react'
-import { colorForState, labelForState } from '../lib/chartColors'
+import { BADGE_CHIP_CLASSNAME, colorForState, labelForState } from '../lib/chartColors'
 
 // Shared Available/Degraded/Removed(/Unknown) indicator -- the Models
 // table's reworked UPTIME column and the model detail page's state chip
@@ -7,5 +7,9 @@ import { colorForState, labelForState } from '../lib/chartColors'
 // NIMStats' binary uptime number, which hid the distinction between
 // "never worked" and "flaky but still alive").
 export function StateBadge({ state }: { state: string | null | undefined }) {
-  return <Badge color={colorForState(state)}>{labelForState(state)}</Badge>
+  return (
+    <Badge color={colorForState(state)} size="xs" className={BADGE_CHIP_CLASSNAME}>
+      {labelForState(state)}
+    </Badge>
+  )
 }

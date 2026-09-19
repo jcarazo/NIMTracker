@@ -323,5 +323,13 @@ export async function fetchExecutionDetail(executionId: string): Promise<Executi
     .neq('resolution', 'excluded_non_text')
     .order('model_slug')
   if (error) throw error
-  return (data ?? []) as ExecutionDetailRow[]
+  // supabase-js infers `model(...)` as an array embed (many-to-one isn't
+  // knowable without a typed Database schema passed to createClient() --
+  // see lib/supabase.ts), so its inferred row type doesn't structurally
+  // overlap with ExecutionDetailRow's single-object `model`. PostgREST
+  // genuinely returns a single object here at runtime (confirmed against
+  // live data throughout the Executions page) -- this is a type-inference
+  // gap, not a runtime mismatch, so cast through `unknown` per TS2352's
+  // own suggestion rather than reshaping working runtime code.
+  return (data ?? []) as unknown as ExecutionDetailRow[]
 }

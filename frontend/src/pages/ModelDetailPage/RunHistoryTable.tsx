@@ -13,7 +13,7 @@ import {
 import { useState } from 'react'
 import { EmptyState } from '../../components/EmptyState'
 import { ResponseModal } from '../../components/ResponseModal'
-import { colorForErrorCategory } from '../../lib/chartColors'
+import { BADGE_CHIP_CLASSNAME, colorForErrorCategory } from '../../lib/chartColors'
 import type { RunHistoryRow } from '../../lib/queries'
 
 // Fixed "last 20", independent of the page's time-range filter (see
@@ -47,9 +47,15 @@ export function RunHistoryTable({ rows }: { rows: RunHistoryRow[] }) {
                 <TableCell>{new Date(row.started_at).toLocaleString()}</TableCell>
                 <TableCell>
                   {row.success ? (
-                    <Badge color="emerald">Success</Badge>
+                    <Badge color="emerald" size="xs" className={BADGE_CHIP_CLASSNAME}>
+                      Success
+                    </Badge>
                   ) : (
-                    <Badge color={colorForErrorCategory(row.error_category ?? 'other')}>
+                    <Badge
+                      color={colorForErrorCategory(row.error_category ?? 'other')}
+                      size="xs"
+                      className={BADGE_CHIP_CLASSNAME}
+                    >
                       {row.error_category ?? 'other'}
                     </Badge>
                   )}

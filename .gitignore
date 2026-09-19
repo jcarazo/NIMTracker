@@ -9,3 +9,17 @@ supabase/.temp/
 .DS_Store
 *.egg-info/
 .pytest_cache/
+
+
+# Impeccable design skill -- regenerate via `npx impeccable install`,
+# not versioned (same treatment as node_modules/.venv: a reinstallable
+# third-party dependency tree, not project-authored content)
+.claude/skills/impeccable/
+.claude/agents/impeccable-*.md
+.github/skills/impeccable/
+.github/agents/impeccable-*.agent.md
+.github/hooks/impeccable.json
+
+# Claude Code local/session state -- never shared across machines
+.claude/settings.local.json
+.claude/scheduled_tasks.lock
